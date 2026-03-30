@@ -37,6 +37,8 @@ jobs:
     - name: Clone source code
       run: |
         git clone $REPO_URL -b $REPO_BRANCH openwrt
+        cd openwrt
+        echo "src-git helloworld https://github.com/fw876/helloworld.git" >> feeds.conf.default
 
     - name: Update and install feeds
       run: |
@@ -44,72 +46,110 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
+    - name: Embed custom settings
+      run: |
+        cd openwrt
+        mkdir -p files/etc/uci-defaults
+        echo '#!/bin/sh' > files/etc/uci-defaults/99-custom-settings
+        echo '' >> files/etc/uci-defaults/99-custom-settings
+        echo "uci set network.lan.ipaddr='192.168.10.1'" >> files/etc/uci-defaults/99-custom-settings
+        echo "uci set network.lan.netmask='255.255.255.0'" >> files/etc/uci-defaults/99-custom-settings
+        echo "uci set network.lan.proto='static'" >> files/etc/uci-defaults/99-custom-settings
+        echo "uci set network.wan.proto='dhcp'" >> files/etc/uci-defaults/99-custom-settings
+        echo "uci set system.@system[0].timezone='CST-8'" >> files/etc/uci-defaults/99-custom-settings
+        echo "uci set system.@system[0].zonename='Asia/Shanghai'" >> files/etc/uci-defaults/99-custom-settings
+        echo "uci set system.@system[0].hostname='OpenWrt'" >> files/etc/uci-defaults/99-custom-settings
+        echo "uci set dropbear.@dropbear[0].Port='36000'" >> files/etc/uci-defaults/99-custom-settings
+        echo 'uci commit network' >> files/etc/uci-defaults/99-custom-settings
+        echo 'uci commit system' >> files/etc/uci-defaults/99-custom-settings
+        echo 'uci commit dropbear' >> files/etc/uci-defaults/99-custom-settings
+        echo 'exit 0' >> files/etc/uci-defaults/99-custom-settings
+        chmod +x files/etc/uci-defaults/99-custom-settings
+        cat files/etc/uci-defaults/99-custom-settings
+
     - name: Generate config
       run: |
         cd openwrt
-        # === Target ===
+        # === Step 1: Write initial .config ===
         echo "CONFIG_TARGET_x86=y" > .config
         echo "CONFIG_TARGET_x86_64=y" >> .config
         echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
         echo "CONFIG_EFI_IMAGES=y" >> .config
         echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
         echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
-        # === Kernel modules ===
-        echo "CONFIG_PACKAGE_kmod-ipt-string=y" >> .config
-        # === LuCI base ===
-        echo "CONFIG_PACKAGE_luci=y" >> .config
-        echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
-        # === Plugins to ENABLE ===
-        echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-vlmcsd=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-serverchan=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-accesscontrol=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-autoreboot=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-diskman=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-filetransfer=y" >> .config
-        echo "CONFIG_PACKAGE_tcpdump=y" >> .config
-        # === Plugins to DISABLE ===
-        echo "# CONFIG_PACKAGE_autosamba is not set" >> .config
-        echo "# CONFIG_PACKAGE_kmod-fs-ksmbd is not set" >> .config
-        echo "# CONFIG_PACKAGE_ksmbd-server is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-ksmbd is not set" >> .config
-        echo "# CONFIG_PACKAGE_samba4-libs is not set" >> .config
-        echo "# CONFIG_PACKAGE_samba4-server is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-samba4 is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-vsftpd is not set" >> .config
-        echo "# CONFIG_PACKAGE_vsftpd-alt is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-ipsec-vpnd is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-xlnetacc is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-unblockmusic is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-jd-dailybonus is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-turboacc is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-wol is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-arpbind is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-vssr is not set" >> .config
-        # === Run defconfig ===
+        # === Step 2: Run defconfig to expand full config ===
         make defconfig
-        # === Force disable after defconfig (in case defconfig re-enables them) ===
-        sed -i 's/CONFIG_PACKAGE_autosamba=y/# CONFIG_PACKAGE_autosamba is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_kmod-fs-ksmbd=y/# CONFIG_PACKAGE_kmod-fs-ksmbd is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_ksmbd-server=y/# CONFIG_PACKAGE_ksmbd-server is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_luci-app-ksmbd=y/# CONFIG_PACKAGE_luci-app-ksmbd is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_samba4-libs=y/# CONFIG_PACKAGE_samba4-libs is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_samba4-server=y/# CONFIG_PACKAGE_samba4-server is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_luci-app-samba4=y/# CONFIG_PACKAGE_luci-app-samba4 is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_luci-app-vsftpd=y/# CONFIG_PACKAGE_luci-app-vsftpd is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_vsftpd-alt=y/# CONFIG_PACKAGE_vsftpd-alt is not set/' .config
-        sed -i 's/CONFIG_PACKAGE_luci-app-turboacc=y/# CONFIG_PACKAGE_luci-app-turboacc is not set/' .config
-        # === Verify ===
-        echo "=== Packages that should be ENABLED ==="
-        grep "=y" .config | grep "luci-app\|kmod-ipt-string\|tcpdump" || true
-        echo "=== Checking ksmbd/samba/autosamba status ==="
-        grep -i "ksmbd\|autosamba\|samba4" .config || echo "None found"
+        # === Step 3: Force-enable all required packages (delete + append) ===
+        # kmod-ipt-string
+        sed -i '/CONFIG_PACKAGE_kmod-ipt-string/d' .config
+        echo "CONFIG_PACKAGE_kmod-ipt-string=y" >> .config
+        # LuCI base
+        sed -i '/CONFIG_PACKAGE_luci=y\b/d' .config
+        echo "CONFIG_PACKAGE_luci=y" >> .config
+        sed -i '/CONFIG_PACKAGE_luci-i18n-base-zh-cn/d' .config
+        echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+        # SSR Plus+
+        sed -i '/CONFIG_PACKAGE_luci-app-ssr-plus[ =]/d' .config
+        echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
+        sed -i '/CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray/d' .config
+        echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
+        # HelloWorld
+        sed -i '/CONFIG_PACKAGE_luci-app-vssr[ =]/d' .config
+        echo "CONFIG_PACKAGE_luci-app-vssr=y" >> .config
+        # KMS Server
+        sed -i '/CONFIG_PACKAGE_luci-app-vlmcsd/d' .config
+        echo "CONFIG_PACKAGE_luci-app-vlmcsd=y" >> .config
+        # Bandwidth monitor
+        sed -i '/CONFIG_PACKAGE_luci-app-nlbwmon/d' .config
+        echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
+        # ServerChan
+        sed -i '/CONFIG_PACKAGE_luci-app-serverchan/d' .config
+        echo "CONFIG_PACKAGE_luci-app-serverchan=y" >> .config
+        # Access Control
+        sed -i '/CONFIG_PACKAGE_luci-app-accesscontrol/d' .config
+        echo "CONFIG_PACKAGE_luci-app-accesscontrol=y" >> .config
+        # Firewall
+        sed -i '/CONFIG_PACKAGE_luci-app-firewall/d' .config
+        echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
+        # DDNS
+        sed -i '/CONFIG_PACKAGE_luci-app-ddns[ =]/d' .config
+        echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
+        # UPnP
+        sed -i '/CONFIG_PACKAGE_luci-app-upnp/d' .config
+        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+        # ttyd
+        sed -i '/CONFIG_PACKAGE_luci-app-ttyd/d' .config
+        echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
+        # Autoreboot
+        sed -i '/CONFIG_PACKAGE_luci-app-autoreboot/d' .config
+        echo "CONFIG_PACKAGE_luci-app-autoreboot=y" >> .config
+        # Disk Manager
+        sed -i '/CONFIG_PACKAGE_luci-app-diskman[ =]/d' .config
+        echo "CONFIG_PACKAGE_luci-app-diskman=y" >> .config
+        # File Transfer
+        sed -i '/CONFIG_PACKAGE_luci-app-filetransfer/d' .config
+        echo "CONFIG_PACKAGE_luci-app-filetransfer=y" >> .config
+        # tcpdump
+        sed -i '/CONFIG_PACKAGE_tcpdump[ =]/d' .config
+        echo "CONFIG_PACKAGE_tcpdump=y" >> .config
+        # === Step 4: Force-disable problematic packages (delete + append not-set) ===
+        for pkg in autosamba kmod-fs-ksmbd ksmbd-server luci-app-ksmbd samba4-libs samba4-server luci-app-samba4 luci-app-vsftpd vsftpd-alt luci-app-ipsec-vpnd luci-app-xlnetacc luci-app-unblockmusic luci-app-jd-dailybonus luci-app-turboacc luci-app-wol luci-app-arpbind; do
+          sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
+          echo "# CONFIG_PACKAGE_${pkg} is not set" >> .config
+        done
+        # === Step 5: Verify (|| true to prevent grep exit code 1 from failing) ===
+        echo "=== ENABLED luci-app packages ==="
+        grep "CONFIG_PACKAGE_luci-app.*=y" .config | sort || true
+        echo "=== kmod-ipt-string status ==="
+        grep "kmod-ipt-string" .config || true
+        echo "=== tcpdump status ==="
+        grep "CONFIG_PACKAGE_tcpdump" .config || true
+        echo "=== HelloWorld (vssr) status ==="
+        grep "luci-app-vssr" .config || true
+        echo "=== ServerChan status ==="
+        grep "serverchan" .config || true
+        echo "=== ksmbd/samba/autosamba (should all be 'not set') ==="
+        grep -i "ksmbd\|autosamba\|samba4" .config || true
 
     - name: Download packages
       run: |
