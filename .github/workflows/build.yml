@@ -47,65 +47,70 @@ jobs:
     - name: Generate config
       run: |
         cd openwrt
-        cat > .config << 'EOF'
-        # Target
-        CONFIG_TARGET_x86=y
-        CONFIG_TARGET_x86_64=y
-        CONFIG_TARGET_x86_64_DEVICE_generic=y
+        cat > .config <<'EOF'
+# Target
+CONFIG_TARGET_x86=y
+CONFIG_TARGET_x86_64=y
+CONFIG_TARGET_x86_64_DEVICE_generic=y
 
-        # EFI boot
-        CONFIG_EFI_IMAGES=y
-        CONFIG_TARGET_IMAGES_GZIP=y
+# EFI boot
+CONFIG_EFI_IMAGES=y
+CONFIG_TARGET_IMAGES_GZIP=y
 
-        # Root filesystem size
-        CONFIG_TARGET_ROOTFS_PARTSIZE=1024
+# Root filesystem size
+CONFIG_TARGET_ROOTFS_PARTSIZE=1024
 
-        # ===== Disable problematic packages =====
-        CONFIG_PACKAGE_kmod-fs-ksmbd=n
-        CONFIG_PACKAGE_ksmbd-server=n
-        CONFIG_PACKAGE_luci-app-ksmbd=n
+# Disable problematic packages
+# CONFIG_PACKAGE_kmod-fs-ksmbd is not set
+# CONFIG_PACKAGE_ksmbd-server is not set
+# CONFIG_PACKAGE_luci-app-ksmbd is not set
 
-        # ===== Kernel modules =====
-        CONFIG_PACKAGE_kmod-ipt-string=y
+# Kernel modules
+CONFIG_PACKAGE_kmod-ipt-string=y
 
-        # ===== LuCI =====
-        CONFIG_PACKAGE_luci=y
-        CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+# LuCI
+CONFIG_PACKAGE_luci=y
+CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
 
-        # ===== Plugins =====
-        # SSR Plus+ (科学上网)
-        CONFIG_PACKAGE_luci-app-ssr-plus=y
-        CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y
+# SSR Plus+
+CONFIG_PACKAGE_luci-app-ssr-plus=y
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y
 
-        # KMS Server
-        CONFIG_PACKAGE_luci-app-vlmcsd=y
+# KMS Server
+CONFIG_PACKAGE_luci-app-vlmcsd=y
 
-        # Bandwidth monitor (带宽监控)
-        CONFIG_PACKAGE_luci-app-nlbwmon=y
+# Bandwidth monitor
+CONFIG_PACKAGE_luci-app-nlbwmon=y
 
-        # ServerChan (微信推送)
-        CONFIG_PACKAGE_luci-app-serverchan=y
+# ServerChan
+CONFIG_PACKAGE_luci-app-serverchan=y
 
-        # Access Control (上网时间控制)
-        CONFIG_PACKAGE_luci-app-accesscontrol=y
+# Access Control
+CONFIG_PACKAGE_luci-app-accesscontrol=y
 
-        # Firewall
-        CONFIG_PACKAGE_luci-app-firewall=y
+# Firewall
+CONFIG_PACKAGE_luci-app-firewall=y
 
-        # DDNS
-        CONFIG_PACKAGE_luci-app-ddns=y
+# DDNS
+CONFIG_PACKAGE_luci-app-ddns=y
 
-        # UPnP
-        CONFIG_PACKAGE_luci-app-upnp=y
+# UPnP
+CONFIG_PACKAGE_luci-app-upnp=y
 
-        # ttyd (Web终端)
-        CONFIG_PACKAGE_luci-app-ttyd=y
+# ttyd Web Terminal
+CONFIG_PACKAGE_luci-app-ttyd=y
 
-        # ===== Extra tools =====
-        CONFIG_PACKAGE_tcpdump=y
-        EOF
-
+# Extra tools
+CONFIG_PACKAGE_tcpdump=y
+EOF
+        # Force remove ksmbd from build
+        sed -i '/ksmbd/d' .config
+        echo '# CONFIG_PACKAGE_kmod-fs-ksmbd is not set' >> .config
+        echo '# CONFIG_PACKAGE_ksmbd-server is not set' >> .config
+        echo '# CONFIG_PACKAGE_luci-app-ksmbd is not set' >> .config
         make defconfig
+        # Verify ksmbd is disabled
+        grep ksmbd .config || echo "ksmbd not found in config - good"
 
     - name: Download packages
       run: |
