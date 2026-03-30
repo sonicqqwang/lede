@@ -47,70 +47,30 @@ jobs:
     - name: Generate config
       run: |
         cd openwrt
-        cat > .config <<'EOF'
-# Target
-CONFIG_TARGET_x86=y
-CONFIG_TARGET_x86_64=y
-CONFIG_TARGET_x86_64_DEVICE_generic=y
-
-# EFI boot
-CONFIG_EFI_IMAGES=y
-CONFIG_TARGET_IMAGES_GZIP=y
-
-# Root filesystem size
-CONFIG_TARGET_ROOTFS_PARTSIZE=1024
-
-# Disable problematic packages
-# CONFIG_PACKAGE_kmod-fs-ksmbd is not set
-# CONFIG_PACKAGE_ksmbd-server is not set
-# CONFIG_PACKAGE_luci-app-ksmbd is not set
-
-# Kernel modules
-CONFIG_PACKAGE_kmod-ipt-string=y
-
-# LuCI
-CONFIG_PACKAGE_luci=y
-CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
-
-# SSR Plus+
-CONFIG_PACKAGE_luci-app-ssr-plus=y
-CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y
-
-# KMS Server
-CONFIG_PACKAGE_luci-app-vlmcsd=y
-
-# Bandwidth monitor
-CONFIG_PACKAGE_luci-app-nlbwmon=y
-
-# ServerChan
-CONFIG_PACKAGE_luci-app-serverchan=y
-
-# Access Control
-CONFIG_PACKAGE_luci-app-accesscontrol=y
-
-# Firewall
-CONFIG_PACKAGE_luci-app-firewall=y
-
-# DDNS
-CONFIG_PACKAGE_luci-app-ddns=y
-
-# UPnP
-CONFIG_PACKAGE_luci-app-upnp=y
-
-# ttyd Web Terminal
-CONFIG_PACKAGE_luci-app-ttyd=y
-
-# Extra tools
-CONFIG_PACKAGE_tcpdump=y
-EOF
-        # Force remove ksmbd from build
-        sed -i '/ksmbd/d' .config
-        echo '# CONFIG_PACKAGE_kmod-fs-ksmbd is not set' >> .config
-        echo '# CONFIG_PACKAGE_ksmbd-server is not set' >> .config
-        echo '# CONFIG_PACKAGE_luci-app-ksmbd is not set' >> .config
+        echo "CONFIG_TARGET_x86=y" > .config
+        echo "CONFIG_TARGET_x86_64=y" >> .config
+        echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
+        echo "CONFIG_EFI_IMAGES=y" >> .config
+        echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
+        echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
+        echo "CONFIG_PACKAGE_kmod-ipt-string=y" >> .config
+        echo "CONFIG_PACKAGE_luci=y" >> .config
+        echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-vlmcsd=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-serverchan=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-accesscontrol=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
+        echo "CONFIG_PACKAGE_tcpdump=y" >> .config
+        sed -i '/ksmbd/d' package/kernel/ksmbd/Makefile 2>/dev/null || true
+        rm -rf package/kernel/ksmbd
         make defconfig
-        # Verify ksmbd is disabled
-        grep ksmbd .config || echo "ksmbd not found in config - good"
+        grep ksmbd .config && echo "WARNING: ksmbd still enabled" || echo "ksmbd disabled - OK"
 
     - name: Download packages
       run: |
