@@ -47,15 +47,19 @@ jobs:
     - name: Generate config
       run: |
         cd openwrt
+        # === Target ===
         echo "CONFIG_TARGET_x86=y" > .config
         echo "CONFIG_TARGET_x86_64=y" >> .config
         echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
         echo "CONFIG_EFI_IMAGES=y" >> .config
         echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
         echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
+        # === Kernel modules ===
         echo "CONFIG_PACKAGE_kmod-ipt-string=y" >> .config
+        # === LuCI base ===
         echo "CONFIG_PACKAGE_luci=y" >> .config
         echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+        # === Plugins to ENABLE ===
         echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-vlmcsd=y" >> .config
@@ -66,11 +70,46 @@ jobs:
         echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-autoreboot=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-diskman=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-filetransfer=y" >> .config
         echo "CONFIG_PACKAGE_tcpdump=y" >> .config
-        sed -i '/ksmbd/d' package/kernel/ksmbd/Makefile 2>/dev/null || true
-        rm -rf package/kernel/ksmbd
+        # === Plugins to DISABLE ===
+        echo "# CONFIG_PACKAGE_autosamba is not set" >> .config
+        echo "# CONFIG_PACKAGE_kmod-fs-ksmbd is not set" >> .config
+        echo "# CONFIG_PACKAGE_ksmbd-server is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-ksmbd is not set" >> .config
+        echo "# CONFIG_PACKAGE_samba4-libs is not set" >> .config
+        echo "# CONFIG_PACKAGE_samba4-server is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-samba4 is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-vsftpd is not set" >> .config
+        echo "# CONFIG_PACKAGE_vsftpd-alt is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-ipsec-vpnd is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-xlnetacc is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-unblockmusic is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-jd-dailybonus is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-turboacc is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-wol is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-arpbind is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-vssr is not set" >> .config
+        # === Run defconfig ===
         make defconfig
-        grep ksmbd .config && echo "WARNING: ksmbd still enabled" || echo "ksmbd disabled - OK"
+        # === Force disable after defconfig (in case defconfig re-enables them) ===
+        sed -i 's/CONFIG_PACKAGE_autosamba=y/# CONFIG_PACKAGE_autosamba is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_kmod-fs-ksmbd=y/# CONFIG_PACKAGE_kmod-fs-ksmbd is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_ksmbd-server=y/# CONFIG_PACKAGE_ksmbd-server is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_luci-app-ksmbd=y/# CONFIG_PACKAGE_luci-app-ksmbd is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_samba4-libs=y/# CONFIG_PACKAGE_samba4-libs is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_samba4-server=y/# CONFIG_PACKAGE_samba4-server is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_luci-app-samba4=y/# CONFIG_PACKAGE_luci-app-samba4 is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_luci-app-vsftpd=y/# CONFIG_PACKAGE_luci-app-vsftpd is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_vsftpd-alt=y/# CONFIG_PACKAGE_vsftpd-alt is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_luci-app-turboacc=y/# CONFIG_PACKAGE_luci-app-turboacc is not set/' .config
+        # === Verify ===
+        echo "=== Packages that should be ENABLED ==="
+        grep "=y" .config | grep "luci-app\|kmod-ipt-string\|tcpdump" || true
+        echo "=== Checking ksmbd/samba/autosamba status ==="
+        grep -i "ksmbd\|autosamba\|samba4" .config || echo "None found"
 
     - name: Download packages
       run: |
