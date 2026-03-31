@@ -68,16 +68,16 @@ jobs:
     - name: Generate config
       run: |
         cd openwrt
-        # === Step 1: Write minimal target config ===
+        # === Step 1: Minimal target config ===
         echo "CONFIG_TARGET_x86=y" > .config
         echo "CONFIG_TARGET_x86_64=y" >> .config
         echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
         echo "CONFIG_EFI_IMAGES=y" >> .config
         echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
         echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
-        # === Step 2: Run defconfig ===
+        # === Step 2: defconfig ===
         make defconfig
-        # === Step 3: Force-enable all required packages ===
+        # === Step 3: Force-enable required packages ===
         for pkg in \
           kmod-ipt-string \
           luci luci-i18n-base-zh-cn \
@@ -92,13 +92,12 @@ jobs:
           luci-app-upnp \
           luci-app-ttyd ttyd \
           luci-app-autoreboot \
-          luci-app-diskman blkid parted smartmontools \
           luci-app-filetransfer \
           tcpdump; do
           sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
           echo "CONFIG_PACKAGE_${pkg}=y" >> .config
         done
-        # === Step 4: Force-disable problematic packages AND their i18n ===
+        # === Step 4: Force-disable problematic packages ===
         for pkg in \
           autosamba kmod-fs-ksmbd ksmbd-server \
           luci-app-ksmbd luci-i18n-ksmbd-zh-cn \
@@ -110,11 +109,11 @@ jobs:
           luci-app-jd-dailybonus \
           luci-app-turboacc luci-i18n-turboacc-zh-cn \
           luci-app-wol luci-i18n-wol-zh-cn \
-          luci-app-arpbind luci-i18n-arpbind-zh-cn; do
+          luci-app-arpbind luci-i18n-arpbind-zh-cn \
+          luci-app-diskman parted smartmontools blkid; do
           sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
           echo "# CONFIG_PACKAGE_${pkg} is not set" >> .config
         done
-        # Also clean up any DEFAULT entries that might cause issues
         sed -i '/CONFIG_DEFAULT_autosamba/d' .config
         sed -i '/autosamba_INCLUDE/d' .config
         sed -i '/CONFIG_KSMBD_SMB_INSECURE_SERVER/d' .config
@@ -129,12 +128,10 @@ jobs:
         grep "luci-app-vssr" .config || true
         echo "=== serverchan ==="
         grep "serverchan" .config || true
-        echo "=== ttyd binary ==="
+        echo "=== ttyd ==="
         grep "CONFIG_PACKAGE_ttyd" .config || true
-        echo "=== diskman deps ==="
-        grep -E "CONFIG_PACKAGE_(blkid|parted|smartmontools)" .config || true
-        echo "=== DISABLED (should all be 'not set') ==="
-        grep -i "ksmbd\|autosamba\|samba4\|vsftpd\|turboacc\|arpbind\|wol" .config | grep -v "^#$" || true
+        echo "=== DISABLED check ==="
+        grep -i "ksmbd\|autosamba\|samba4\|vsftpd\|turboacc\|arpbind\|wol\|diskman\|parted" .config | head -20 || true
 
     - name: Download packages
       run: |
