@@ -51,7 +51,6 @@ jobs:
         cd openwrt
         mkdir -p files/etc/uci-defaults
         echo '#!/bin/sh' > files/etc/uci-defaults/99-custom-settings
-        echo '' >> files/etc/uci-defaults/99-custom-settings
         echo "uci set network.lan.ipaddr='192.168.10.1'" >> files/etc/uci-defaults/99-custom-settings
         echo "uci set network.lan.netmask='255.255.255.0'" >> files/etc/uci-defaults/99-custom-settings
         echo "uci set network.lan.proto='static'" >> files/etc/uci-defaults/99-custom-settings
@@ -65,91 +64,77 @@ jobs:
         echo 'uci commit dropbear' >> files/etc/uci-defaults/99-custom-settings
         echo 'exit 0' >> files/etc/uci-defaults/99-custom-settings
         chmod +x files/etc/uci-defaults/99-custom-settings
-        cat files/etc/uci-defaults/99-custom-settings
 
     - name: Generate config
       run: |
         cd openwrt
-        # === Step 1: Write initial .config ===
+        # === Step 1: Write minimal target config ===
         echo "CONFIG_TARGET_x86=y" > .config
         echo "CONFIG_TARGET_x86_64=y" >> .config
         echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
         echo "CONFIG_EFI_IMAGES=y" >> .config
         echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
         echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
-        # === Step 2: Run defconfig to expand full config ===
+        # === Step 2: Run defconfig ===
         make defconfig
-        # === Step 3: Force-enable all required packages (delete + append) ===
-        # kmod-ipt-string
-        sed -i '/CONFIG_PACKAGE_kmod-ipt-string/d' .config
-        echo "CONFIG_PACKAGE_kmod-ipt-string=y" >> .config
-        # LuCI base
-        sed -i '/CONFIG_PACKAGE_luci=y\b/d' .config
-        echo "CONFIG_PACKAGE_luci=y" >> .config
-        sed -i '/CONFIG_PACKAGE_luci-i18n-base-zh-cn/d' .config
-        echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
-        # SSR Plus+
-        sed -i '/CONFIG_PACKAGE_luci-app-ssr-plus[ =]/d' .config
-        echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
-        sed -i '/CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray/d' .config
-        echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
-        # HelloWorld
-        sed -i '/CONFIG_PACKAGE_luci-app-vssr[ =]/d' .config
-        echo "CONFIG_PACKAGE_luci-app-vssr=y" >> .config
-        # KMS Server
-        sed -i '/CONFIG_PACKAGE_luci-app-vlmcsd/d' .config
-        echo "CONFIG_PACKAGE_luci-app-vlmcsd=y" >> .config
-        # Bandwidth monitor
-        sed -i '/CONFIG_PACKAGE_luci-app-nlbwmon/d' .config
-        echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
-        # ServerChan
-        sed -i '/CONFIG_PACKAGE_luci-app-serverchan/d' .config
-        echo "CONFIG_PACKAGE_luci-app-serverchan=y" >> .config
-        # Access Control
-        sed -i '/CONFIG_PACKAGE_luci-app-accesscontrol/d' .config
-        echo "CONFIG_PACKAGE_luci-app-accesscontrol=y" >> .config
-        # Firewall
-        sed -i '/CONFIG_PACKAGE_luci-app-firewall/d' .config
-        echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
-        # DDNS
-        sed -i '/CONFIG_PACKAGE_luci-app-ddns[ =]/d' .config
-        echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
-        # UPnP
-        sed -i '/CONFIG_PACKAGE_luci-app-upnp/d' .config
-        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
-        # ttyd
-        sed -i '/CONFIG_PACKAGE_luci-app-ttyd/d' .config
-        echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
-        # Autoreboot
-        sed -i '/CONFIG_PACKAGE_luci-app-autoreboot/d' .config
-        echo "CONFIG_PACKAGE_luci-app-autoreboot=y" >> .config
-        # Disk Manager
-        sed -i '/CONFIG_PACKAGE_luci-app-diskman[ =]/d' .config
-        echo "CONFIG_PACKAGE_luci-app-diskman=y" >> .config
-        # File Transfer
-        sed -i '/CONFIG_PACKAGE_luci-app-filetransfer/d' .config
-        echo "CONFIG_PACKAGE_luci-app-filetransfer=y" >> .config
-        # tcpdump
-        sed -i '/CONFIG_PACKAGE_tcpdump[ =]/d' .config
-        echo "CONFIG_PACKAGE_tcpdump=y" >> .config
-        # === Step 4: Force-disable problematic packages (delete + append not-set) ===
-        for pkg in autosamba kmod-fs-ksmbd ksmbd-server luci-app-ksmbd samba4-libs samba4-server luci-app-samba4 luci-app-vsftpd vsftpd-alt luci-app-ipsec-vpnd luci-app-xlnetacc luci-app-unblockmusic luci-app-jd-dailybonus luci-app-turboacc luci-app-wol luci-app-arpbind; do
+        # === Step 3: Force-enable all required packages ===
+        for pkg in \
+          kmod-ipt-string \
+          luci luci-i18n-base-zh-cn \
+          luci-app-ssr-plus luci-app-ssr-plus_INCLUDE_Xray \
+          luci-app-vssr \
+          luci-app-vlmcsd \
+          luci-app-nlbwmon \
+          luci-app-serverchan \
+          luci-app-accesscontrol \
+          luci-app-firewall \
+          luci-app-ddns \
+          luci-app-upnp \
+          luci-app-ttyd ttyd \
+          luci-app-autoreboot \
+          luci-app-diskman blkid parted smartmontools \
+          luci-app-filetransfer \
+          tcpdump; do
+          sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
+          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
+        done
+        # === Step 4: Force-disable problematic packages AND their i18n ===
+        for pkg in \
+          autosamba kmod-fs-ksmbd ksmbd-server \
+          luci-app-ksmbd luci-i18n-ksmbd-zh-cn \
+          samba4-libs samba4-server luci-app-samba4 \
+          luci-app-vsftpd vsftpd-alt luci-i18n-vsftpd-zh-cn \
+          luci-app-ipsec-vpnd \
+          luci-app-xlnetacc \
+          luci-app-unblockmusic \
+          luci-app-jd-dailybonus \
+          luci-app-turboacc luci-i18n-turboacc-zh-cn \
+          luci-app-wol luci-i18n-wol-zh-cn \
+          luci-app-arpbind luci-i18n-arpbind-zh-cn; do
           sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
           echo "# CONFIG_PACKAGE_${pkg} is not set" >> .config
         done
-        # === Step 5: Verify (|| true to prevent grep exit code 1 from failing) ===
+        # Also clean up any DEFAULT entries that might cause issues
+        sed -i '/CONFIG_DEFAULT_autosamba/d' .config
+        sed -i '/autosamba_INCLUDE/d' .config
+        sed -i '/CONFIG_KSMBD_SMB_INSECURE_SERVER/d' .config
+        # === Step 5: Verify ===
         echo "=== ENABLED luci-app packages ==="
         grep "CONFIG_PACKAGE_luci-app.*=y" .config | sort || true
-        echo "=== kmod-ipt-string status ==="
+        echo "=== kmod-ipt-string ==="
         grep "kmod-ipt-string" .config || true
-        echo "=== tcpdump status ==="
+        echo "=== tcpdump ==="
         grep "CONFIG_PACKAGE_tcpdump" .config || true
-        echo "=== HelloWorld (vssr) status ==="
+        echo "=== vssr (HelloWorld) ==="
         grep "luci-app-vssr" .config || true
-        echo "=== ServerChan status ==="
+        echo "=== serverchan ==="
         grep "serverchan" .config || true
-        echo "=== ksmbd/samba/autosamba (should all be 'not set') ==="
-        grep -i "ksmbd\|autosamba\|samba4" .config || true
+        echo "=== ttyd binary ==="
+        grep "CONFIG_PACKAGE_ttyd" .config || true
+        echo "=== diskman deps ==="
+        grep -E "CONFIG_PACKAGE_(blkid|parted|smartmontools)" .config || true
+        echo "=== DISABLED (should all be 'not set') ==="
+        grep -i "ksmbd\|autosamba\|samba4\|vsftpd\|turboacc\|arpbind\|wol" .config | grep -v "^#$" || true
 
     - name: Download packages
       run: |
