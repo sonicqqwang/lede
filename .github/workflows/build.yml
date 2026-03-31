@@ -90,7 +90,6 @@ jobs:
           luci-app-firewall \
           luci-app-ddns \
           luci-app-upnp \
-          luci-app-ttyd ttyd \
           luci-app-autoreboot \
           luci-app-filetransfer \
           tcpdump; do
@@ -110,7 +109,8 @@ jobs:
           luci-app-turboacc luci-i18n-turboacc-zh-cn \
           luci-app-wol luci-i18n-wol-zh-cn \
           luci-app-arpbind luci-i18n-arpbind-zh-cn \
-          luci-app-diskman parted smartmontools blkid; do
+          luci-app-diskman parted smartmontools blkid \
+          luci-app-ttyd ttyd luci-i18n-ttyd-zh-cn; do
           sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
           echo "# CONFIG_PACKAGE_${pkg} is not set" >> .config
         done
@@ -128,10 +128,8 @@ jobs:
         grep "luci-app-vssr" .config || true
         echo "=== serverchan ==="
         grep "serverchan" .config || true
-        echo "=== ttyd ==="
-        grep "CONFIG_PACKAGE_ttyd" .config || true
         echo "=== DISABLED check ==="
-        grep -i "ksmbd\|autosamba\|samba4\|vsftpd\|turboacc\|arpbind\|wol\|diskman\|parted" .config | head -20 || true
+        grep -i "ksmbd\|autosamba\|samba4\|vsftpd\|turboacc\|arpbind\|wol\|diskman\|parted\|ttyd" .config | head -20 || true
 
     - name: Download packages
       run: |
