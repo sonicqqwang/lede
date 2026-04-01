@@ -46,6 +46,25 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
+    - name: Diagnose available packages
+      run: |
+        cd openwrt
+        echo "=== Checking if key packages exist in feeds ==="
+        echo "--- kmod-ipt-string ---"
+        grep -r "kmod-ipt-string" package/kernel/linux/modules/ || echo "NOT FOUND in kernel modules"
+        echo "--- luci-app-vssr ---"
+        find feeds/ -type d -name "luci-app-vssr" || echo "NOT FOUND in feeds"
+        echo "--- luci-app-serverchan ---"
+        find feeds/ package/ -type d -name "luci-app-serverchan" || echo "NOT FOUND"
+        find feeds/ package/ -type d -name "luci-app-pushbot" || echo "pushbot NOT FOUND"
+        echo "--- Available helloworld packages ---"
+        ls feeds/helloworld/ 2>/dev/null || echo "helloworld feed not found"
+        echo "--- Search for string match in netfilter ---"
+        grep -l "xt_string\|ipt-string\|string match" package/kernel/linux/modules/netfilter.mk 2>/dev/null || echo "not in netfilter.mk"
+        grep "xt_string\|kmod-ipt-string" package/kernel/linux/modules/netfilter.mk 2>/dev/null || echo "string not found in netfilter.mk"
+        echo "--- feeds install list for key packages ---"
+        ./scripts/feeds list | grep -i "vssr\|helloworld\|serverchan\|pushbot" || echo "none found in feeds list"
+
     - name: Embed custom settings
       run: |
         cd openwrt
@@ -68,66 +87,34 @@ jobs:
     - name: Generate config
       run: |
         cd openwrt
-        # === ALL config BEFORE defconfig ===
-        # Target
+        # === Step 1: Minimal target config + defconfig ===
         echo "CONFIG_TARGET_x86=y" > .config
         echo "CONFIG_TARGET_x86_64=y" >> .config
         echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
         echo "CONFIG_EFI_IMAGES=y" >> .config
         echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
         echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
-        # Kernel modules
-        echo "CONFIG_PACKAGE_kmod-ipt-string=y" >> .config
-        # LuCI base
-        echo "CONFIG_PACKAGE_luci=y" >> .config
-        echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
-        # SSR Plus+
-        echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
-        # HelloWorld
-        echo "CONFIG_PACKAGE_luci-app-vssr=y" >> .config
-        # KMS
-        echo "CONFIG_PACKAGE_luci-app-vlmcsd=y" >> .config
-        # Bandwidth monitor
-        echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
-        # ServerChan
-        echo "CONFIG_PACKAGE_luci-app-serverchan=y" >> .config
-        # Access Control
-        echo "CONFIG_PACKAGE_luci-app-accesscontrol=y" >> .config
-        # Firewall
-        echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
-        # DDNS
-        echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
-        # UPnP
-        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
-        # Autoreboot
-        echo "CONFIG_PACKAGE_luci-app-autoreboot=y" >> .config
-        # File Transfer
-        echo "CONFIG_PACKAGE_luci-app-filetransfer=y" >> .config
-        # Tools
-        echo "CONFIG_PACKAGE_tcpdump=y" >> .config
-        # Disable problematic packages BEFORE defconfig
-        echo "# CONFIG_PACKAGE_autosamba is not set" >> .config
-        echo "# CONFIG_PACKAGE_kmod-fs-ksmbd is not set" >> .config
-        echo "# CONFIG_PACKAGE_ksmbd-server is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-ksmbd is not set" >> .config
-        echo "# CONFIG_PACKAGE_samba4-libs is not set" >> .config
-        echo "# CONFIG_PACKAGE_samba4-server is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-samba4 is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-vsftpd is not set" >> .config
-        echo "# CONFIG_PACKAGE_vsftpd-alt is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-ipsec-vpnd is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-xlnetacc is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-unblockmusic is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-jd-dailybonus is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-turboacc is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-wol is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-arpbind is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-diskman is not set" >> .config
-        echo "# CONFIG_PACKAGE_luci-app-ttyd is not set" >> .config
-        # === Run defconfig - this resolves all dependencies ===
         make defconfig
-        # === AFTER defconfig: ONLY force-disable packages that defconfig might re-enable ===
+        # === Step 2: Force-add packages AFTER defconfig (delete+append) ===
+        for pkg in \
+          kmod-ipt-string \
+          luci luci-i18n-base-zh-cn \
+          luci-app-ssr-plus luci-app-ssr-plus_INCLUDE_Xray \
+          luci-app-vssr \
+          luci-app-vlmcsd \
+          luci-app-nlbwmon \
+          luci-app-serverchan \
+          luci-app-accesscontrol \
+          luci-app-firewall \
+          luci-app-ddns \
+          luci-app-upnp \
+          luci-app-autoreboot \
+          luci-app-filetransfer \
+          tcpdump; do
+          sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
+          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
+        done
+        # === Step 3: Force-disable problematic packages ===
         for pkg in \
           autosamba kmod-fs-ksmbd ksmbd-server \
           luci-app-ksmbd luci-i18n-ksmbd-zh-cn \
@@ -139,12 +126,20 @@ jobs:
           luci-app-diskman luci-i18n-diskman-zh-cn \
           luci-app-ttyd luci-i18n-ttyd-zh-cn ttyd \
           parted smartmontools blkid; do
-          sed -i "s/CONFIG_PACKAGE_${pkg}=y/# CONFIG_PACKAGE_${pkg} is not set/" .config
+          sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
+          echo "# CONFIG_PACKAGE_${pkg} is not set" >> .config
         done
         sed -i '/CONFIG_DEFAULT_autosamba/d' .config
         sed -i '/autosamba_INCLUDE/d' .config
         sed -i '/CONFIG_KSMBD_SMB_INSECURE_SERVER/d' .config
-        # === Verify ===
+        # === Step 4: Run make defconfig AGAIN to resolve dependencies for newly added packages ===
+        make defconfig
+        # === Step 5: Force-add AGAIN in case second defconfig removed them ===
+        for pkg in kmod-ipt-string luci-app-vssr luci-app-serverchan; do
+          sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
+          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
+        done
+        # === Step 6: Verify ===
         echo "=== ENABLED luci-app packages ==="
         grep "CONFIG_PACKAGE_luci-app.*=y" .config | sort || true
         echo "=== kmod-ipt-string ==="
