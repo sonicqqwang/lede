@@ -34,11 +34,43 @@ jobs:
           qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget \
           xmlto xxd zlib1g-dev zstd
 
-    - name: Clone source code
+    - name: Clone source code and add extra packages
       run: |
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         cd openwrt
         echo "src-git helloworld https://github.com/fw876/helloworld.git" >> feeds.conf.default
+        git clone https://github.com/jerrykuku/luci-app-vssr.git package/luci-app-vssr
+        git clone https://github.com/tty228/luci-app-serverchan.git package/luci-app-serverchan
+
+    - name: Patch kmod-ipt-string into kernel modules
+      run: |
+        cd openwrt
+        echo "" >> package/kernel/linux/modules/netfilter.mk
+        echo "define KernelPackage/ipt-string" >> package/kernel/linux/modules/netfilter.mk
+        echo "  SUBMENU:=\$(NF_MENU)" >> package/kernel/linux/modules/netfilter.mk
+        echo "  TITLE:=String match support" >> package/kernel/linux/modules/netfilter.mk
+        echo "  KCONFIG:= \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    CONFIG_NETFILTER_XT_MATCH_STRING \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    CONFIG_TEXTSEARCH=y \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    CONFIG_TEXTSEARCH_KMP=y \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    CONFIG_TEXTSEARCH_BM=y \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    CONFIG_TEXTSEARCH_FSM=y" >> package/kernel/linux/modules/netfilter.mk
+        echo "  FILES:= \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    \$(LINUX_DIR)/net/netfilter/xt_string.ko \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    \$(LINUX_DIR)/lib/ts_bm.ko \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    \$(LINUX_DIR)/lib/ts_fsm.ko \\" >> package/kernel/linux/modules/netfilter.mk
+        echo "    \$(LINUX_DIR)/lib/ts_kmp.ko" >> package/kernel/linux/modules/netfilter.mk
+        echo "  AUTOLOAD:=\$(call AutoProbe,ts_bm ts_fsm ts_kmp xt_string)" >> package/kernel/linux/modules/netfilter.mk
+        echo "  \$(call AddDepends/ipt)" >> package/kernel/linux/modules/netfilter.mk
+        echo "endef" >> package/kernel/linux/modules/netfilter.mk
+        echo "" >> package/kernel/linux/modules/netfilter.mk
+        echo "define KernelPackage/ipt-string/description" >> package/kernel/linux/modules/netfilter.mk
+        echo "  Netfilter string match support" >> package/kernel/linux/modules/netfilter.mk
+        echo "endef" >> package/kernel/linux/modules/netfilter.mk
+        echo "" >> package/kernel/linux/modules/netfilter.mk
+        echo "\$(eval \$(call KernelPackage,ipt-string))" >> package/kernel/linux/modules/netfilter.mk
+        echo "=== Verify patch ==="
+        tail -20 package/kernel/linux/modules/netfilter.mk
 
     - name: Update and install feeds
       run: |
@@ -46,24 +78,15 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Diagnose available packages
+    - name: Verify packages exist
       run: |
         cd openwrt
-        echo "=== Checking if key packages exist in feeds ==="
-        echo "--- kmod-ipt-string ---"
-        grep -r "kmod-ipt-string" package/kernel/linux/modules/ || echo "NOT FOUND in kernel modules"
-        echo "--- luci-app-vssr ---"
-        find feeds/ -type d -name "luci-app-vssr" || echo "NOT FOUND in feeds"
-        echo "--- luci-app-serverchan ---"
-        find feeds/ package/ -type d -name "luci-app-serverchan" || echo "NOT FOUND"
-        find feeds/ package/ -type d -name "luci-app-pushbot" || echo "pushbot NOT FOUND"
-        echo "--- Available helloworld packages ---"
-        ls feeds/helloworld/ 2>/dev/null || echo "helloworld feed not found"
-        echo "--- Search for string match in netfilter ---"
-        grep -l "xt_string\|ipt-string\|string match" package/kernel/linux/modules/netfilter.mk 2>/dev/null || echo "not in netfilter.mk"
-        grep "xt_string\|kmod-ipt-string" package/kernel/linux/modules/netfilter.mk 2>/dev/null || echo "string not found in netfilter.mk"
-        echo "--- feeds install list for key packages ---"
-        ./scripts/feeds list | grep -i "vssr\|helloworld\|serverchan\|pushbot" || echo "none found in feeds list"
+        echo "=== kmod-ipt-string ==="
+        grep "ipt-string" package/kernel/linux/modules/netfilter.mk | head -3 || echo "MISSING"
+        echo "=== luci-app-vssr ==="
+        ls package/luci-app-vssr/Makefile 2>/dev/null && echo "FOUND" || echo "MISSING"
+        echo "=== luci-app-serverchan ==="
+        ls package/luci-app-serverchan/Makefile 2>/dev/null && echo "FOUND" || echo "MISSING"
 
     - name: Embed custom settings
       run: |
@@ -87,34 +110,43 @@ jobs:
     - name: Generate config
       run: |
         cd openwrt
-        # === Step 1: Minimal target config + defconfig ===
         echo "CONFIG_TARGET_x86=y" > .config
         echo "CONFIG_TARGET_x86_64=y" >> .config
         echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
         echo "CONFIG_EFI_IMAGES=y" >> .config
         echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
         echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
+        echo "CONFIG_PACKAGE_kmod-ipt-string=y" >> .config
+        echo "CONFIG_PACKAGE_luci=y" >> .config
+        echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-vssr=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-vlmcsd=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-serverchan=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-accesscontrol=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-autoreboot=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-filetransfer=y" >> .config
+        echo "CONFIG_PACKAGE_tcpdump=y" >> .config
+        echo "# CONFIG_PACKAGE_autosamba is not set" >> .config
+        echo "# CONFIG_PACKAGE_kmod-fs-ksmbd is not set" >> .config
+        echo "# CONFIG_PACKAGE_ksmbd-server is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-ksmbd is not set" >> .config
+        echo "# CONFIG_PACKAGE_samba4-libs is not set" >> .config
+        echo "# CONFIG_PACKAGE_samba4-server is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-samba4 is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-vsftpd is not set" >> .config
+        echo "# CONFIG_PACKAGE_vsftpd-alt is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-turboacc is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-wol is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-arpbind is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-diskman is not set" >> .config
+        echo "# CONFIG_PACKAGE_luci-app-ttyd is not set" >> .config
         make defconfig
-        # === Step 2: Force-add packages AFTER defconfig (delete+append) ===
-        for pkg in \
-          kmod-ipt-string \
-          luci luci-i18n-base-zh-cn \
-          luci-app-ssr-plus luci-app-ssr-plus_INCLUDE_Xray \
-          luci-app-vssr \
-          luci-app-vlmcsd \
-          luci-app-nlbwmon \
-          luci-app-serverchan \
-          luci-app-accesscontrol \
-          luci-app-firewall \
-          luci-app-ddns \
-          luci-app-upnp \
-          luci-app-autoreboot \
-          luci-app-filetransfer \
-          tcpdump; do
-          sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
-          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
-        done
-        # === Step 3: Force-disable problematic packages ===
         for pkg in \
           autosamba kmod-fs-ksmbd ksmbd-server \
           luci-app-ksmbd luci-i18n-ksmbd-zh-cn \
@@ -126,32 +158,21 @@ jobs:
           luci-app-diskman luci-i18n-diskman-zh-cn \
           luci-app-ttyd luci-i18n-ttyd-zh-cn ttyd \
           parted smartmontools blkid; do
-          sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
-          echo "# CONFIG_PACKAGE_${pkg} is not set" >> .config
+          sed -i "s/CONFIG_PACKAGE_${pkg}=y/# CONFIG_PACKAGE_${pkg} is not set/" .config
         done
         sed -i '/CONFIG_DEFAULT_autosamba/d' .config
         sed -i '/autosamba_INCLUDE/d' .config
         sed -i '/CONFIG_KSMBD_SMB_INSECURE_SERVER/d' .config
-        # === Step 4: Run make defconfig AGAIN to resolve dependencies for newly added packages ===
-        make defconfig
-        # === Step 5: Force-add AGAIN in case second defconfig removed them ===
-        for pkg in kmod-ipt-string luci-app-vssr luci-app-serverchan; do
-          sed -i "/CONFIG_PACKAGE_${pkg}[ =]/d" .config
-          echo "CONFIG_PACKAGE_${pkg}=y" >> .config
-        done
-        # === Step 6: Verify ===
         echo "=== ENABLED luci-app packages ==="
         grep "CONFIG_PACKAGE_luci-app.*=y" .config | sort || true
         echo "=== kmod-ipt-string ==="
         grep "kmod-ipt-string" .config || true
         echo "=== tcpdump ==="
         grep "CONFIG_PACKAGE_tcpdump" .config || true
-        echo "=== vssr (HelloWorld) ==="
+        echo "=== vssr ==="
         grep "vssr" .config || true
         echo "=== serverchan ==="
         grep "serverchan" .config || true
-        echo "=== DISABLED check ==="
-        grep -i "ksmbd\|autosamba\|samba4\|vsftpd\|turboacc\|arpbind\|wol\|diskman\|parted\|ttyd" .config | head -20 || true
 
     - name: Download packages
       run: |
