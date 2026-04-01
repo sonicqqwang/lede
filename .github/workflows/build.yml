@@ -34,15 +34,13 @@ jobs:
           qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget \
           xmlto xxd zlib1g-dev zstd
 
-    - name: Clone source code and add extra packages
+    - name: Clone source code
       run: |
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         cd openwrt
         echo "src-git helloworld https://github.com/fw876/helloworld.git" >> feeds.conf.default
-        git clone https://github.com/jerrykuku/luci-app-vssr.git package/luci-app-vssr
-        git clone https://github.com/tty228/luci-app-serverchan.git package/luci-app-serverchan
 
-    - name: Patch kmod-ipt-string into kernel modules
+    - name: Patch kmod-ipt-string
       run: |
         cd openwrt
         echo "" >> package/kernel/linux/modules/netfilter.mk
@@ -69,24 +67,14 @@ jobs:
         echo "endef" >> package/kernel/linux/modules/netfilter.mk
         echo "" >> package/kernel/linux/modules/netfilter.mk
         echo "\$(eval \$(call KernelPackage,ipt-string))" >> package/kernel/linux/modules/netfilter.mk
-        echo "=== Verify patch ==="
-        tail -20 package/kernel/linux/modules/netfilter.mk
+        echo "=== Verify kmod-ipt-string patch ==="
+        grep "ipt-string" package/kernel/linux/modules/netfilter.mk | head -5
 
     - name: Update and install feeds
       run: |
         cd openwrt
         ./scripts/feeds update -a
         ./scripts/feeds install -a
-
-    - name: Verify packages exist
-      run: |
-        cd openwrt
-        echo "=== kmod-ipt-string ==="
-        grep "ipt-string" package/kernel/linux/modules/netfilter.mk | head -3 || echo "MISSING"
-        echo "=== luci-app-vssr ==="
-        ls package/luci-app-vssr/Makefile 2>/dev/null && echo "FOUND" || echo "MISSING"
-        echo "=== luci-app-serverchan ==="
-        ls package/luci-app-serverchan/Makefile 2>/dev/null && echo "FOUND" || echo "MISSING"
 
     - name: Embed custom settings
       run: |
@@ -121,10 +109,8 @@ jobs:
         echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-vssr=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-vlmcsd=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-serverchan=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-accesscontrol=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-ddns=y" >> .config
@@ -169,10 +155,6 @@ jobs:
         grep "kmod-ipt-string" .config || true
         echo "=== tcpdump ==="
         grep "CONFIG_PACKAGE_tcpdump" .config || true
-        echo "=== vssr ==="
-        grep "vssr" .config || true
-        echo "=== serverchan ==="
-        grep "serverchan" .config || true
 
     - name: Download packages
       run: |
