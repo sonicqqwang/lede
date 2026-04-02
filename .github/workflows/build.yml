@@ -70,27 +70,20 @@ jobs:
         echo "=== Verify kmod-ipt-string patch ==="
         grep "ipt-string" package/kernel/linux/modules/netfilter.mk | head -5
 
-    - name: Patch iptables-mod-string
+    - name: Patch libxt_string into iptables-mod-extra
       run: |
         cd openwrt
         IPTMK="package/network/utils/iptables/Makefile"
-        echo "=== Adding iptables-mod-string to iptables Makefile ==="
-        echo "" >> $IPTMK
-        echo "IPT_STRING-m:=libxt_string" >> $IPTMK
-        echo "" >> $IPTMK
-        echo "define Package/iptables-mod-string" >> $IPTMK
-        echo "  \$(call Package/iptables/Module)" >> $IPTMK
-        echo "  TITLE:=String match iptables extension" >> $IPTMK
-        echo "  DEPENDS:=+iptables +kmod-ipt-string" >> $IPTMK
-        echo "endef" >> $IPTMK
-        echo "" >> $IPTMK
-        echo "define Package/iptables-mod-string/description" >> $IPTMK
-        echo "  iptables extension for string matching support" >> $IPTMK
-        echo "endef" >> $IPTMK
-        echo "" >> $IPTMK
-        echo "\$(eval \$(call BuildPlugin,iptables-mod-string,\$(IPT_STRING-m)))" >> $IPTMK
-        echo "=== Verify iptables-mod-string patch ==="
-        grep "string" $IPTMK | tail -10
+        echo "=== Before patch - IPT_EXTRA-m ==="
+        grep "IPT_EXTRA-m" $IPTMK || true
+        # Add libxt_string to the existing iptables-mod-extra module list
+        sed -i 's/IPT_EXTRA-m:=/IPT_EXTRA-m:=libxt_string /' $IPTMK
+        # Also add kmod-ipt-string as dependency for iptables-mod-extra
+        sed -i '/Package\/iptables-mod-extra/{n;s/DEPENDS:=/DEPENDS:=+kmod-ipt-string /}' $IPTMK
+        echo "=== After patch - IPT_EXTRA-m ==="
+        grep "IPT_EXTRA-m" $IPTMK || true
+        echo "=== After patch - iptables-mod-extra DEPENDS ==="
+        grep -A3 "Package/iptables-mod-extra$" $IPTMK | head -5 || true
 
     - name: Update and install feeds
       run: |
@@ -127,7 +120,7 @@ jobs:
         echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
         echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
         echo "CONFIG_PACKAGE_kmod-ipt-string=y" >> .config
-        echo "CONFIG_PACKAGE_iptables-mod-string=y" >> .config
+        echo "CONFIG_PACKAGE_iptables-mod-extra=y" >> .config
         echo "CONFIG_PACKAGE_luci=y" >> .config
         echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
@@ -176,8 +169,8 @@ jobs:
         grep "CONFIG_PACKAGE_luci-app.*=y" .config | sort || true
         echo "=== kmod-ipt-string ==="
         grep "kmod-ipt-string" .config || true
-        echo "=== iptables-mod-string ==="
-        grep "iptables-mod-string" .config || true
+        echo "=== iptables-mod-extra ==="
+        grep "iptables-mod-extra" .config || true
         echo "=== tcpdump ==="
         grep "CONFIG_PACKAGE_tcpdump" .config || true
 
